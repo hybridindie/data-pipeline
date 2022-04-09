@@ -1,0 +1,8 @@
+_db
+logs
+docker
+.git
+.idea
+.dockerignore
+Pipfile
+Pipfile.lock
