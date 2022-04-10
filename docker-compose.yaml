@@ -84,7 +84,7 @@ services:
     image: postgres:13
     ports:
       - 5432:5432
-    env_file: docker/.env
+    env_file: docker/docker.env
     volumes:
       - ./docker/postgres_init:/docker-entrypoint-initdb.d
       - ./_db:/var/lib/postgresql/data
@@ -112,7 +112,7 @@ services:
     image: catalyst-jupyter
     ports:
       - 8888:8888
-    env_file: docker/.env
+    env_file: docker/docker.env
     restart: always
     profiles:
       - jupyter
@@ -319,7 +319,7 @@ services:
 
   # Superset Services
   superset:
-    env_file: docker/.env
+    env_file: docker/docker.env
     image: *superset-image
     container_name: superset_app
     command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
@@ -337,7 +337,7 @@ services:
     image: *superset-image
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
-    env_file: docker/.env
+    env_file: docker/docker.env
     profiles:
       - superset
       - full
@@ -349,7 +349,7 @@ services:
     image: *superset-image
     container_name: superset_worker
     command: ["/app/docker/docker-bootstrap.sh", "worker"]
-    env_file: docker/.env
+    env_file: docker/docker.env
     restart: unless-stopped
     profiles:
       - superset
@@ -362,7 +362,7 @@ services:
     image: *superset-image
     container_name: superset_worker_beat
     command: ["/app/docker/docker-bootstrap.sh", "beat"]
-    env_file: docker/.env
+    env_file: docker/docker.env
     restart: unless-stopped
     profiles:
       - superset

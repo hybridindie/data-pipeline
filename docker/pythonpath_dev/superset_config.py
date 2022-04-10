@@ -67,6 +67,16 @@ REDIS_PORT = get_env_variable("REDIS_PORT")
 REDIS_CELERY_DB = get_env_variable("REDIS_CELERY_DB", "0")
 REDIS_RESULTS_DB = get_env_variable("REDIS_RESULTS_DB", "1")
 
+CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+}
+FILTER_STATE_CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+}
+EXPLORE_FORM_DATA_CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+}
+
 RESULTS_BACKEND = FileSystemCache("/app/superset_home/sqllab")
 
 
