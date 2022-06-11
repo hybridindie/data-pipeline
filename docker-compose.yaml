@@ -38,7 +38,7 @@
 #
 # Feel free to modify this file to suit your needs.
 ---
-version: '3'
+version: '3.7'
 x-core-common:
   &core-common
   depends_on:
@@ -72,16 +72,55 @@ x-airflow-common:
     - ./plugins:/opt/airflow/plugins
   user: "${AIRFLOW_UID:-50000}:0"
 
-x-superset-image: &superset-image apache/superset:${TAG:-latest}
-x-superset-volumes: &superset-volumes
+
+x-superset-image:
+  &superset-image apache/superset:${TAG:-latest-dev}
+x-superset-volumes:
+  &superset-volumes
   # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
   - ./docker/superset:/app/docker
   - superset_home:/app/superset_home
 
+x-spark-image:
+  &spark-image apache/spark-py:v3.2.1
+x-spark-common-environment:
+    &spark-common-env
+    JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64/
+    SPARK_LOCAL_DIRS: /opt/workspace
+    SPARK_NO_DAEMONIZE: true
+    SPARK_HOME: /opt/spark
+    SPARK_MASTER_HOST: spark-master
+    SPARK_MASTER_PORT: 7077
+    SPARK_MASTER_OPTS: ""
+    PYSPARK_PYTHON: python3
+    SPARK_WORKER_CORES: 1
+    SPARK_WORKER_MEMORY: 1024m
+x-spark-worker:
+  &spark-worker
+  build:
+    context: .
+    dockerfile: ./docker/spark/Dockerfile
+  image: spark
+  environment: *spark-common-env
+  profiles:
+    - spark
+    - full
+  command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077"]
+  volumes:
+    - spark-workspace:/opt/workspace
+  depends_on:
+    - spark-master
+
 services:
+  ##############################################################################
   # Core Services (Redis, Postgres)
+  ##############################################################################
   postgres:
     image: postgres:13
+    profiles:
+      - airflow
+      - superset
+      - full
     ports:
       - 5432:5432
     env_file: docker/docker.env
@@ -96,6 +135,10 @@ services:
 
   redis:
     image: redis:latest
+    profiles:
+      - airflow
+      - superset
+      - full
     expose:
       - 6379
     healthcheck:
@@ -109,7 +152,7 @@ services:
     build:
       context: .
       dockerfile: ./docker/jupyter/Dockerfile
-    image: catalyst-jupyter
+    image: jupyter
     ports:
       - 8888:8888
     env_file: docker/docker.env
@@ -117,8 +160,7 @@ services:
     profiles:
       - jupyter
       - full
-    depends_on:
-      <<: *core-common-depends-on
+    <<: *core-common
     volumes:
       - ./scripts:/jupyter/scripts
       - ./notebooks:/jupyter/notebooks
@@ -126,7 +168,9 @@ services:
       - .env:/jupyter/.env
     command: ["jupyter", "lab", "--no-browser", "--allow-root", "--ip='*'", "--LabApp.token=''"]
 
+  ##############################################################################
   # Airflow Services
+  ##############################################################################
   airflow-webserver:
     <<: *airflow-common
     command: webserver
@@ -281,7 +325,8 @@ services:
     profiles:
       - airflow
       - full
-    depends_on: *core-common-depends-on
+    depends_on:
+      <<: *core-common-depends-on
     volumes:
       - .:/sources
 
@@ -317,7 +362,9 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  #############################################################################
   # Superset Services
+  #############################################################################
   superset:
     env_file: docker/docker.env
     image: *superset-image
@@ -371,8 +418,42 @@ services:
     user: "root"
     volumes: *superset-volumes
 
+  ##############################################################################
+  # Spark Services
+  ##############################################################################
+  spark-master:
+    build:
+      context: .
+      dockerfile: ./docker/spark/Dockerfile
+    image: spark
+    container_name: spark-master
+    environment: *spark-common-env
+    ports:
+      - 8070:8080
+      - 7077:7077
+    profiles:
+      - spark
+      - full
+    volumes:
+      - spark-workspace:/opt/workspace
+    command: ["/opt/spark/sbin/start-master.sh"]
+    user: "0"
+  spark-worker-1:
+    <<: *spark-worker
+    container_name: spark-worker-1
+    ports:
+      - 8071:8081
+  spark-worker-2:
+    <<: *spark-worker
+    container_name: spark-worker-2
+    ports:
+      - 8072:8081
+
 volumes:
   redis:
     external: false
   superset_home:
     external: false
+  spark-workspace:
+    name: "hdfs"
+    driver: local
