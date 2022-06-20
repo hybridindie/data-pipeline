@@ -1,0 +1,26 @@
+version: '3.7'
+x-core-common:
+  &core-common
+  depends_on:
+    &core-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+services:
+  jupyter:
+    build:
+      context: .
+      dockerfile: ./docker/jupyter/Dockerfile
+    image: jupyter
+    ports:
+      - 8888:8888
+    env_file: docker/docker.env
+    restart: always
+    <<: *core-common
+    volumes:
+      - ./scripts:/jupyter/scripts
+      - ./notebooks:/jupyter/notebooks
+      - ./dags:/jupyter/dags
+      - .env:/jupyter/.env
+    command: ["jupyter", "lab", "--no-browser", "--allow-root", "--ip='*'", "--LabApp.token=''"]

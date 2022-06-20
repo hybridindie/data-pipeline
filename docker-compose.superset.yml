@@ -1,0 +1,62 @@
+version: '3.7'
+x-core-common: &core-common
+  depends_on: &core-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+x-superset-image: &superset-image apache/superset:${TAG:-latest-dev}
+x-superset-volumes: &superset-volumes
+  # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
+  - ./docker/superset:/app/docker
+  - superset_home:/app/superset_home
+
+services:
+  #############################################################################
+  # Superset Services
+  #############################################################################
+  superset:
+    env_file: docker/docker.env
+    image: *superset-image
+    container_name: superset_app
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    user: "root"
+    restart: unless-stopped
+    ports:
+      - 8088:8088
+    depends_on: *core-common-depends-on
+    volumes: *superset-volumes
+
+  superset-init:
+    image: *superset-image
+    container_name: superset_init
+    command: ["/app/docker/docker-init.sh"]
+    env_file: docker/docker.env
+    depends_on: *core-common-depends-on
+    user: "root"
+    volumes: *superset-volumes
+
+  superset-worker:
+    image: *superset-image
+    container_name: superset_worker
+    command: ["/app/docker/docker-bootstrap.sh", "worker"]
+    env_file: docker/docker.env
+    restart: unless-stopped
+    depends_on: *core-common-depends-on
+    user: "root"
+    volumes: *superset-volumes
+
+  superset-worker-beat:
+    image: *superset-image
+    container_name: superset_worker_beat
+    command: ["/app/docker/docker-bootstrap.sh", "beat"]
+    env_file: docker/docker.env
+    restart: unless-stopped
+    depends_on: *core-common-depends-on
+    user: "root"
+    volumes: *superset-volumes
+
+volumes:
+  superset_home:
+    external: false
