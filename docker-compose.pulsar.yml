@@ -1,0 +1,246 @@
+version: '3.7'
+
+services:
+  # Zookeeper
+  zookeeper:
+    container_name: zookeeper
+    hostname: zookeeper
+    image: apachepulsar/pulsar-all:latest
+    command: >
+      bash -c "/opt/pulsar/scripts/apply-config-from-env.py conf/zookeeper.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               /opt/pulsar/scripts/generate-zookeeper-config.sh conf/zookeeper.conf && \
+               bin/pulsar zookeeper"
+#    environment:
+#      ZOOKEEPER_SERVERS: zookeeper
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    networks:
+      datastack:
+
+  pulsar-init:
+    container_name: pulsar-init
+    hostname: pulsar-init
+    image: apachepulsar/pulsar-all:latest
+    command: /opt/pulsar/scripts/init-cluster.sh
+    environment:
+      clusterName: test
+      zkServers: zookeeper:2181
+      configurationStore: zookeeper:2181
+      pulsarNode: proxy
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+    networks:
+      datastack:
+
+  # Bookkeeper
+  bookkeeper:
+    hostname: bookkeeper
+    container_name: bookkeeper
+    image: apachepulsar/pulsar-all:latest
+    command: >
+      bash -c "export dbStorage_writeCacheMaxSizeMb="$${dbStorage_writeCacheMaxSizeMb:-16}" && \
+               export dbStorage_readAheadCacheMaxSizeMb="$${dbStorage_readAheadCacheMaxSizeMb:-16}" && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/bookkeeper.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               bin/watch-znode.py -z $$zkServers -p /initialized-$$clusterName -w && \
+               bin/pulsar bookie"
+    environment:
+      clusterName: test
+      zkServers: zookeeper:2181
+      numAddWorkerThreads: 8
+      useHostNameAsBookieID: "true"
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+      - pulsar-init
+    networks:
+      datastack:
+
+  bookkeeper2:
+    hostname: bookkeeper2
+    container_name: bookkeeper2
+    image: apachepulsar/pulsar-all:latest
+    command: >
+      bash -c "export dbStorage_writeCacheMaxSizeMb="$${dbStorage_writeCacheMaxSizeMb:-16}" && \
+               export dbStorage_readAheadCacheMaxSizeMb="$${dbStorage_readAheadCacheMaxSizeMb:-16}" && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/bookkeeper.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               bin/watch-znode.py -z $$zkServers -p /initialized-$$clusterName -w && \
+               bin/pulsar bookie"
+    environment:
+      clusterName: test
+      zkServers: zookeeper:2181
+      numAddWorkerThreads: 8
+      useHostNameAsBookieID: "true"
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+      - pulsar-init
+      - bookkeeper
+    networks:
+      datastack:
+
+  bookkeeper3:
+    hostname: bookkeeper3
+    container_name: bookkeeper3
+    image: apachepulsar/pulsar-all:latest
+    command: >
+      bash -c "export dbStorage_writeCacheMaxSizeMb="$${dbStorage_writeCacheMaxSizeMb:-16}" && \
+               export dbStorage_readAheadCacheMaxSizeMb="$${dbStorage_readAheadCacheMaxSizeMb:-16}" && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/bookkeeper.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               bin/watch-znode.py -z $$zkServers -p /initialized-$$clusterName -w && \
+               bin/pulsar bookie"
+    environment:
+      clusterName: test
+      zkServers: zookeeper:2181
+      numAddWorkerThreads: 8
+      useHostNameAsBookieID: "true"
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+      - pulsar-init
+      - bookkeeper
+      - bookkeeper2
+    networks:
+      datastack:
+
+  broker:
+    hostname: broker
+    container_name: broker
+    image: apachepulsar/pulsar-all:latest
+    restart: on-failure
+    command: >
+      bash -c "/opt/pulsar/scripts/apply-config-from-env.py conf/broker.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               /opt/pulsar/scripts/watch-znode.py -z $$zookeeperServers -p /initialized-$$clusterName -w && \
+               bin/pulsar broker"
+    environment:
+      clusterName: test
+      zookeeperServers: zookeeper:2181
+      configurationStore: zookeeper:2181
+      webSocketServiceEnabled: "false"
+      functionsWorkerEnabled: "false"
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+      - pulsar-init
+      - bookkeeper
+    networks:
+      datastack:
+
+  proxy:
+    hostname: proxy
+    container_name: proxy
+    restart: on-failure
+    image: apachepulsar/pulsar-all:latest
+    command: >
+      bash -c "/opt/pulsar/scripts/apply-config-from-env.py conf/proxy.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               /opt/pulsar/scripts/watch-znode.py -z $$zookeeperServers -p /initialized-$$clusterName -w && \
+               bin/pulsar proxy"
+    environment:
+      clusterName: test
+      zookeeperServers: zookeeper:2181
+      configurationStoreServers: zookeeper:2181
+      webSocketServiceEnabled: "true"
+      functionWorkerWebServiceURL: http://functions-worker:6750
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    depends_on:
+      - zookeeper
+      - pulsar-init
+      - bookkeeper
+      - broker
+    networks:
+      datastack:
+
+  websocket:
+    hostname: websocket
+    container_name: websocket
+    restart: on-failure
+    image: apachepulsar/pulsar-all:latest
+    command: >
+      bash -c "/opt/pulsar/scripts/apply-config-from-env.py conf/websocket.conf && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               /opt/pulsar/scripts/watch-znode.py -z $$zookeeperServers -p /initialized-$$clusterName -w && \
+               bin/pulsar websocket"
+    environment:
+      clusterName: test
+      zookeeperServers: zookeeper:2181
+      configurationStoreServers: zookeeper:2181
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+      - pulsar-init
+      - bookkeeper
+      - broker
+      - proxy
+    networks:
+      datastack:
+
+  functions_worker:
+    hostname: functions_worker
+    container_name: functions_worker
+    image: apachepulsar/pulsar-all:latest
+    restart: on-failure
+    command: >
+      bash -c "/opt/pulsar/scripts/apply-config-from-env.py conf/client.conf && \
+               /opt/pulsar/scripts/gen-yml-from-env.py conf/functions_worker.yml && \
+               /opt/pulsar/scripts/apply-config-from-env.py conf/pulsar_env.sh && \
+               /opt/pulsar/scripts/watch-znode.py -z $$zookeeperServers -p /initialized-$$clusterName -w && \
+               bin/pulsar functions-worker"
+    environment:
+      clusterName: test
+      zookeeperServers: zookeeper:2181
+      # Requires PF_ prefix for some reason in the code
+      PF_pulsarFunctionsCluster: test
+      PF_workerId: functions_worker
+      PF_pulsarFunctionsCluster: test
+      # This setting does not appear to accept more than one host
+      PF_configurationStoreServers: zookeeper:2181
+      PF_pulsarServiceUrl: pulsar://proxy:6650
+      PF_pulsarWebServiceUrl: http://proxy:8080
+    volumes:
+      - ./docker/pulsar:/opt/pulsar/scripts
+    depends_on:
+      - zookeeper
+      - pulsar-init
+      - bookkeeper
+      - broker
+      - proxy
+    networks:
+      datastack:
+
+  manager:
+    hostname: manager
+    container_name: manager
+    image: apachepulsar/pulsar-manager:v0.1.0
+    ports:
+      - "9527:9527"
+      - "7750:7750"
+    depends_on:
+      - broker
+    volumes:
+      - "./data/:/data"
+    environment:
+      REDIRECT_HOST: "http://127.0.0.1"
+      REDIRECT_PORT: "9527"
+      DRIVER_CLASS_NAME: "org.postgresql.Driver"
+      URL: "jdbc:postgresql://postgres:5432/pulsar"
+      USERNAME: "postgres"
+      PASSWORD: "postgres"
+      LOG_LEVEL: "DEBUG"
+    networks:
+      datastack:
