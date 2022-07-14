@@ -1,25 +1,21 @@
 version: '3.7'
-x-core-common:
-  &core-common
-  depends_on:
-    &core-common-depends-on
+x-core-common: &core-common
+  depends_on: &core-common-depends-on
     redis:
       condition: service_healthy
     postgres:
       condition: service_healthy
-x-airflow-common:
-  &airflow-common
+
+x-airflow-common: &airflow-common
   # In order to add custom dependencies or upgrade provider packages you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
-#  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.3.2}
+  # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.3.2}
   build:
     context: .
     dockerfile: ./docker/airflow/Dockerfile
   image: airflow
-  # build: .
-  environment:
-    &airflow-common-env
+  environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:postgres@postgres/airflow
@@ -35,6 +31,8 @@ x-airflow-common:
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
   user: "${AIRFLOW_UID:-50000}:0"
+  networks:
+    datastack:
 
 services:
   ##############################################################################
@@ -211,3 +209,15 @@ services:
       <<: *core-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+
+  git-sync:
+    image: openweb/git-sync:0.0.1
+    environment:
+      GIT_SYNC_REPO: ${DAGS_REPO:-airflow}
+      GIT_SYNC_DEST: "/git"
+      GIT_SYNC_BRANCH: ${DAGS_REPO_BRANCH:-master}
+      GIT_SYNC_REV: "FETCH_HEAD"
+      GIT_SYNC_WAIT: "10"
+    volumes:
+      - ./dags:/git
+    restart: always

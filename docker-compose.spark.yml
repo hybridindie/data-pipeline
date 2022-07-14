@@ -54,16 +54,24 @@ services:
       - spark-workspace:/opt/workspace
     command: ["/opt/spark/sbin/start-master.sh"]
     user: "0"
+    networks:
+      datastack:
+
   spark-worker-1:
     <<: *spark-worker
     container_name: spark-worker-1
     ports:
       - 8071:8081
+    networks:
+      datastack:
+
   spark-worker-2:
     <<: *spark-worker
     container_name: spark-worker-2
     ports:
       - 8072:8081
+    networks:
+      datastack:
 
 volumes:
   spark-workspace:

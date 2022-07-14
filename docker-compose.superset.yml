@@ -27,6 +27,8 @@ services:
       - 8088:8088
     depends_on: *core-common-depends-on
     volumes: *superset-volumes
+    networks:
+      datastack:
 
   superset-init:
     image: *superset-image
@@ -36,6 +38,8 @@ services:
     depends_on: *core-common-depends-on
     user: "root"
     volumes: *superset-volumes
+    networks:
+      datastack:
 
   superset-worker:
     image: *superset-image
@@ -46,6 +50,8 @@ services:
     depends_on: *core-common-depends-on
     user: "root"
     volumes: *superset-volumes
+    networks:
+      datastack:
 
   superset-worker-beat:
     image: *superset-image
@@ -56,6 +62,8 @@ services:
     depends_on: *core-common-depends-on
     user: "root"
     volumes: *superset-volumes
+    networks:
+      datastack:
 
 volumes:
   superset_home:

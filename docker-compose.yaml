@@ -1,5 +1,9 @@
 version: '3.7'
 
+networks:
+  datastack:
+    driver: bridge
+
 services:
   ##############################################################################
   # Core Services (Redis, Postgres)
